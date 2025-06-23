@@ -37,6 +37,11 @@ export interface IStorage {
   updateServer(id: number, updates: Partial<InsertMinecraftServer>): Promise<MinecraftServer>;
   deleteServer(id: number): Promise<void>;
   
+  // Auto-stop system operations
+  renewServerTime(serverId: number, userId: string): Promise<MinecraftServer>;
+  updateServerPing(serverId: number, playersOnline: number): Promise<void>;
+  getServersForAutoStop(): Promise<MinecraftServer[]>;
+  
   // Subscription operations
   getUserSubscriptions(userId: string): Promise<ServerSubscription[]>;
   createSubscription(subscription: InsertServerSubscription): Promise<ServerSubscription>;
@@ -116,6 +121,49 @@ export class DatabaseStorage implements IStorage {
 
   async deleteServer(id: number): Promise<void> {
     await db.delete(minecraftServers).where(eq(minecraftServers.id, id));
+  }
+
+  // Auto-stop system operations
+  async renewServerTime(serverId: number, userId: string): Promise<MinecraftServer> {
+    const server = await this.getServer(serverId);
+    if (!server || server.userId !== userId) {
+      throw new Error("Server not found or access denied");
+    }
+
+    const [updatedServer] = await db
+      .update(minecraftServers)
+      .set({
+        offlineTimeUsed: 0,
+        startTime: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(minecraftServers.id, serverId))
+      .returning();
+    
+    return updatedServer;
+  }
+
+  async updateServerPing(serverId: number, playersOnline: number): Promise<void> {
+    await db
+      .update(minecraftServers)
+      .set({
+        playersOnline,
+        lastPingTime: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(minecraftServers.id, serverId));
+  }
+
+  async getServersForAutoStop(): Promise<MinecraftServer[]> {
+    return await db
+      .select()
+      .from(minecraftServers)
+      .where(
+        and(
+          eq(minecraftServers.status, 'online'),
+          eq(minecraftServers.autoStopEnabled, true)
+        )
+      );
   }
 
   // Subscription operations

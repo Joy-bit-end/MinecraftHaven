@@ -11,6 +11,7 @@ import ServerConsole from "@/components/server-console";
 import FileManager from "@/components/file-manager";
 import PluginManager from "@/components/plugin-manager";
 import ServerSettings from "@/components/server-settings";
+import AutoStopTimer from "@/components/auto-stop-timer";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -38,7 +39,7 @@ export default function ServerManagement() {
     }
   }, [isAuthenticated, authLoading, toast]);
 
-  const { data: server, isLoading, error } = useQuery({
+  const { data: server, isLoading, error } = useQuery<any>({
     queryKey: [`/api/servers/${id}`],
     retry: false,
     enabled: !!id && !authLoading && isAuthenticated,
@@ -196,12 +197,12 @@ export default function ServerManagement() {
 
   // Mock server stats
   const mockStats = {
-    playersOnline: server.status === 'online' ? Math.floor(Math.random() * server.maxPlayers) : 0,
-    maxPlayers: server.maxPlayers,
-    cpuUsage: server.status === 'online' ? Math.floor(Math.random() * 50) + 20 : 0,
-    ramUsage: server.status === 'online' ? Math.floor(Math.random() * 3) + 1 : 0,
+    playersOnline: server?.status === 'online' ? Math.floor(Math.random() * (server?.maxPlayers || 20)) : 0,
+    maxPlayers: server?.maxPlayers || 20,
+    cpuUsage: server?.status === 'online' ? Math.floor(Math.random() * 50) + 20 : 0,
+    ramUsage: server?.status === 'online' ? Math.floor(Math.random() * 3) + 1 : 0,
     ramTotal: 4, // Based on basic plan
-    uptime: server.status === 'online' ? '5d 12h' : '0m',
+    uptime: server?.status === 'online' ? '5d 12h' : '0m',
   };
 
   return (
@@ -210,19 +211,19 @@ export default function ServerManagement() {
         {/* Server Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-white mb-2">{server.name}</h1>
-            <p className="text-slate-400">{server.subdomain}.blockcraft.com</p>
+            <h1 className="text-3xl font-bold text-white mb-2">{server?.name}</h1>
+            <p className="text-slate-400">{server?.subdomain}.blockcraft.com</p>
           </div>
           <div className="flex items-center space-x-3">
             <div className="flex items-center space-x-2">
-              {getStatusIcon(server.status)}
-              <Badge className={`${getStatusColor(server.status)} capitalize`}>
-                {server.status}
+              {getStatusIcon(server?.status || 'offline')}
+              <Badge className={`${getStatusColor(server?.status || 'offline')} capitalize`}>
+                {server?.status || 'offline'}
               </Badge>
             </div>
             <Button
               onClick={() => startServerMutation.mutate()}
-              disabled={server.status === 'online' || server.status === 'starting' || startServerMutation.isPending}
+              disabled={server?.status === 'online' || server?.status === 'starting' || startServerMutation.isPending}
               className="bg-emerald-600 hover:bg-emerald-700"
             >
               <Play className="h-4 w-4 mr-2" />
@@ -230,7 +231,7 @@ export default function ServerManagement() {
             </Button>
             <Button
               onClick={() => stopServerMutation.mutate()}
-              disabled={server.status === 'offline' || server.status === 'stopping' || stopServerMutation.isPending}
+              disabled={server?.status === 'offline' || server?.status === 'stopping' || stopServerMutation.isPending}
               className="bg-red-600 hover:bg-red-700"
             >
               <Square className="h-4 w-4 mr-2" />
@@ -238,7 +239,7 @@ export default function ServerManagement() {
             </Button>
             <Button
               onClick={() => restartServerMutation.mutate()}
-              disabled={server.status === 'offline' || restartServerMutation.isPending}
+              disabled={server?.status === 'offline' || restartServerMutation.isPending}
               className="bg-amber-600 hover:bg-amber-700"
             >
               <RotateCcw className="h-4 w-4 mr-2" />
@@ -246,6 +247,9 @@ export default function ServerManagement() {
             </Button>
           </div>
         </div>
+
+        {/* Auto-Stop Timer for Non-Premium Users */}
+        {server && <AutoStopTimer server={server} />}
 
         {/* Server Stats */}
         <ServerStats stats={mockStats} />

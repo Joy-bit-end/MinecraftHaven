@@ -26,6 +26,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Initialize server plans if empty
+  const initializeServerPlans = async () => {
+    try {
+      const existingPlans = await storage.getServerPlans();
+      if (existingPlans.length === 0) {
+        const defaultPlans = [
+          {
+            name: "Free",
+            description: "Basic Minecraft server hosting with auto-stop after 60 minutes of inactivity",
+            price: 0,
+            maxPlayers: 10,
+            ramGB: 1,
+            storageGB: 5,
+            features: ["1GB RAM", "10 Players", "5GB Storage", "Auto-stop after 60min idle", "Community Support"]
+          },
+          {
+            name: "Starter",
+            description: "Perfect for small communities with friends",
+            price: 5.99,
+            maxPlayers: 20,
+            ramGB: 2,
+            storageGB: 10,
+            features: ["2GB RAM", "20 Players", "10GB Storage", "No Auto-stop", "Priority Support", "Plugin Support"]
+          },
+          {
+            name: "Premium",
+            description: "Great for active communities and content creators",
+            price: 14.99,
+            maxPlayers: 50,
+            ramGB: 4,
+            storageGB: 25,
+            features: ["4GB RAM", "50 Players", "25GB Storage", "No Auto-stop", "24/7 Support", "Full Plugin Access", "Custom Branding"]
+          }
+        ];
+
+        for (const plan of defaultPlans) {
+          await storage.createServerPlan(plan);
+        }
+        console.log("Default server plans initialized");
+      }
+    } catch (error) {
+      console.error("Error initializing server plans:", error);
+    }
+  };
+
+  // Initialize plans on startup
+  await initializeServerPlans();
+
   // Server plans routes
   app.get('/api/server-plans', async (req, res) => {
     try {
@@ -88,6 +136,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...req.body,
         userId,
         subdomain: req.body.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
+        startTime: new Date(),
+        offlineTimeUsed: 0,
+        playersOnline: 0,
+        autoStopEnabled: req.body.planId === 1, // Only enable for Free plan (ID: 1)
       });
       
       const server = await storage.createServer(serverData);
@@ -163,8 +215,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Server not found" });
       }
 
-      // Mock server start
-      await storage.updateServer(serverId, { status: 'online' });
+      // Get server plan to check if premium
+      const plan = await storage.getServerPlan(server.planId);
+      const isPremium = plan && plan.name !== "Free";
+
+      // Mock server start with auto-stop settings
+      await storage.updateServer(serverId, { 
+        status: 'online',
+        startTime: new Date(),
+        offlineTimeUsed: 0,
+        lastPingTime: new Date(),
+        playersOnline: 0,
+        autoStopEnabled: !isPremium // Only enable auto-stop for non-premium users
+      });
+      
       res.json({ message: "Server started successfully" });
     } catch (error) {
       console.error("Error starting server:", error);
@@ -209,6 +273,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error restarting server:", error);
       res.status(500).json({ message: "Failed to restart server" });
+    }
+  });
+
+  // Server renew route (for auto-stop reset)
+  app.post('/api/servers/:id/renew', isAuthenticated, async (req: any, res) => {
+    try {
+      const serverId = parseInt(req.params.id);
+      const userId = req.user.claims.sub;
+      
+      const server = await storage.renewServerTime(serverId, userId);
+      res.json({ 
+        message: "Server time renewed successfully",
+        server: {
+          ...server,
+          offlineTimeUsed: 0,
+          timeRemaining: 60
+        }
+      });
+    } catch (error: any) {
+      console.error("Error renewing server:", error);
+      if (error.message === "Server not found or access denied") {
+        res.status(403).json({ message: error.message });
+      } else {
+        res.status(500).json({ message: "Failed to renew server" });
+      }
     }
   });
 

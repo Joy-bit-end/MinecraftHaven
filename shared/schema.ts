@@ -67,6 +67,12 @@ export const minecraftServers = pgTable("minecraft_servers", {
   commandBlocksEnabled: boolean("command_blocks_enabled").default(false),
   generateStructures: boolean("generate_structures").default(true),
   status: varchar("status").default("offline"), // 'online', 'offline', 'starting', 'stopping'
+  // Auto-stop tracking fields
+  startTime: timestamp("start_time"),
+  offlineTimeUsed: integer("offline_time_used").default(0), // minutes of offline time used
+  lastPingTime: timestamp("last_ping_time"),
+  playersOnline: integer("players_online").default(0),
+  autoStopEnabled: boolean("auto_stop_enabled").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
