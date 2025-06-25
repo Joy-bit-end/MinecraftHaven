@@ -1,1 +1,2 @@
 server/bedrock_server filter=lfs diff=lfs merge=lfs -text
+server/bedrock-server.zip filter=lfs diff=lfs merge=lfs -text
