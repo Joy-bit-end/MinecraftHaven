@@ -1,0 +1,11 @@
+app = "minecrafthaven"
+
+primary_region = "maa"  # Closest to Rajasthan
+
+[build]
+  dockerfile = "Dockerfile"
+
+[[services]]
+  protocol = "udp"
+  internal_port = 19132
+  ports = [{ port = 19132 }]
